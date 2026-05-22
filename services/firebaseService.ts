@@ -15,7 +15,24 @@ import {
   updateDoc,
   limit
 } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+// Safe fallback firebase config that doesn't fail building on Vercel if firebase-applet-config.json is gitignored
+const isServer = typeof process !== 'undefined' && process.env;
+const getEnv = (key: string): string | undefined => {
+  if (isServer) {
+    return process.env[key];
+  }
+  return (import.meta as any).env?.[key];
+};
+
+const firebaseConfig = {
+  apiKey: getEnv('VITE_FIREBASE_API_KEY') || getEnv('FIREBASE_API_KEY') || "AIzaSyCGViw3U4txp2_1CSN1Ak-Jm7uz0O43yKQ",
+  authDomain: getEnv('VITE_FIREBASE_AUTH_DOMAIN') || getEnv('FIREBASE_AUTH_DOMAIN') || "gen-lang-client-0462290848.firebaseapp.com",
+  projectId: getEnv('VITE_FIREBASE_PROJECT_ID') || getEnv('FIREBASE_PROJECT_ID') || "gen-lang-client-0462290848",
+  storageBucket: getEnv('VITE_FIREBASE_STORAGE_BUCKET') || getEnv('FIREBASE_STORAGE_BUCKET') || "gen-lang-client-0462290848.firebasestorage.app",
+  messagingSenderId: getEnv('VITE_FIREBASE_MESSAGING_SENDER_ID') || getEnv('FIREBASE_MESSAGING_SENDER_ID') || "396231309367",
+  appId: getEnv('VITE_FIREBASE_APP_ID') || getEnv('FIREBASE_APP_ID') || "1:396231309367:web:e85d7aa1e194cd177067b2",
+  firestoreDatabaseId: getEnv('VITE_FIREBASE_FIRESTORE_DATABASE_ID') || getEnv('FIREBASE_FIRESTORE_DATABASE_ID') || "ai-studio-6491097a-94fc-4f68-8c52-231edb3e5884"
+};
 
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
