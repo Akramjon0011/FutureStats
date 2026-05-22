@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default Deny All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Admin helper
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'akramfarmonov998@gmail.com';
+    }
+
+    // Lead entity validator
+    function isValidLead(data) {
+      return data.keys().hasAll(['email', 'createdAt', 'tier']) &&
+             data.keys().size() <= 7 &&
+             data.email is string && data.email.size() > 3 && data.email.size() <= 150 &&
+             data.tier in ['free', 'premium'] &&
+             (!('uid' in data) || data.uid is string || data.uid == null) &&
+             (!('role' in data) || data.role in ['admin', 'user']) &&
+             (!('status' in data) || data.status in ['pending', 'approved', 'rejected']) &&
+             (data.get('role', 'user') == 'admin' ? data.email == 'akramfarmonov998@gmail.com' : true);
+    }
+
+    // Prompt History validation
+    function isValidPromptHistory(data) {
+      return data.keys().hasAll(['userId', 'topic', 'style', 'createdAt', 'promptsCount']) &&
+             data.keys().size() <= 6 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.userId == request.auth.uid &&
+             data.topic is string && data.topic.size() <= 1000 &&
+             data.style is string && data.style.size() <= 200 &&
+             data.createdAt is timestamp &&
+             data.promptsCount is int && data.promptsCount >= 0;
+    }
+
+    // Leads collection rules
+    match /leads/{leadId} {
+      allow get: if isAdmin() || (isSignedIn() && (isOwner(existing().uid) || isOwner(leadId) || (existing().keys().hasAll(['email']) && existing().email == request.auth.token.email)));
+      allow list: if isAdmin();
+      allow create: if isValidId(leadId) && isValidLead(incoming()) && incoming().createdAt == request.time && (
+        !('uid' in incoming()) || incoming().uid == null || incoming().uid == request.auth.uid ||
+        (incoming().keys().hasAll(['email']) && incoming().email == request.auth.token.email)
+      );
+      allow update: if (isAdmin() && isValidLead(incoming())) || (
+                      isSignedIn() && isValidLead(incoming()) && (
+                        isOwner(existing().uid) || 
+                        !('uid' in existing()) || 
+                        existing().uid == null || 
+                        (existing().keys().hasAll(['email']) && existing().email == request.auth.token.email)
+                      ) &&
+                      (incoming().createdAt == existing().createdAt || incoming().createdAt == request.time) &&
+                      incoming().tier == existing().tier && 
+                      incoming().get('role', 'user') == existing().get('role', 'user') && 
+                      incoming().get('status', 'pending') == existing().get('status', 'pending')
+                    );
+      allow delete: if false; // Leads are permanent
+    }
+
+    // Prompts History rules
+    match /promptsHistory/{historyId} {
+      allow get: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isValidId(historyId) && isValidPromptHistory(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if false; // History is immutable log
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+  }
+}
