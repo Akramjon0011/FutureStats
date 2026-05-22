@@ -38,3 +38,5 @@ dist/
 node_modules/
 firebase-applet-config.json
 firebase-blueprint.json
+
+.vercel
