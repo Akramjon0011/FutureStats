@@ -1,4 +1,5 @@
 {
+  "name": "futurestats-app",
   "version": 2,
   "routes": [
     {
